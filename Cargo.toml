@@ -1,0 +1,15 @@
+[package]
+name = "sabishii-auth"
+version = "0.1.0"
+edition = "2021"
+description = "Shared device auth client for sabishii CLIs"
+authors = ["c0dt <spj@c0dt.app>"]
+
+[dependencies]
+reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+keyring = "2"
+anyhow = "1"
+chrono = { version = "0.4", features = ["serde"] }
+tokio = { version = "1", features = ["time"] }
