@@ -33,3 +33,17 @@ pub struct TokenErrorResponse {
     pub error: String,
     pub error_description: Option<String>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UserProfile {
+    pub id: String,
+    pub name: String,
+    pub email: String,
+    #[serde(rename = "emailVerified")]
+    pub email_verified: bool,
+    pub image: Option<String>,
+    #[serde(rename = "createdAt")]
+    pub created_at: String,
+    #[serde(rename = "updatedAt")]
+    pub updated_at: String,
+}
