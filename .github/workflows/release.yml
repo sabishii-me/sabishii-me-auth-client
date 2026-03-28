@@ -93,6 +93,14 @@ jobs:
           done
           ls -la *.node
 
+      - name: Install dependencies and generate TypeScript bindings
+        run: |
+          npm install
+          npx napi artifacts --build-output-dir .
+
+      - name: List generated files
+        run: ls -la index.* *.node
+
       - name: Update package.json for publishing
         run: |
           node -e "
