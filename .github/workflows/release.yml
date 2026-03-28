@@ -46,15 +46,12 @@ jobs:
 
       - name: Build (native target)
         if: matrix.settings.target != 'aarch64-apple-darwin'
-        run: |
-          cargo build --release --features napi
-          npm run build
+        run: npm run build
 
       - name: Build (cross-compile ARM)
         if: matrix.settings.target == 'aarch64-apple-darwin'
         run: |
           rustup target add aarch64-apple-darwin
-          cargo build --release --target aarch64-apple-darwin --features napi
           npm run build -- --target aarch64-apple-darwin
 
       - name: Upload artifact
@@ -84,22 +81,14 @@ jobs:
         with:
           path: artifacts
 
-      - name: Move bindings to package root
+      - name: Copy bindings to package root
         run: |
           for dir in artifacts/bindings-*; do
             if [ -d "$dir" ]; then
               cp "$dir"/*.node . 2>/dev/null || true
             fi
           done
-          ls -la *.node
-
-      - name: Install dependencies and generate TypeScript bindings
-        run: |
-          npm install
-          npx napi artifacts --dist .
-
-      - name: List generated files
-        run: ls -la index.* *.node
+          ls -la *.node *.js *.d.ts
 
       - name: Update package.json for publishing
         run: |
