@@ -13,3 +13,22 @@ keyring = "2"
 anyhow = "1"
 chrono = { version = "0.4", features = ["serde"] }
 tokio = { version = "1", features = ["time"] }
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[build-dependencies]
+napi-build = "2"
+
+[dependencies.napi]
+optional = true
+version = "2"
+default-features = false
+features = ["napi9", "async", "tokio_rt"]
+
+[dependencies.napi-derive]
+optional = true
+version = "2"
+
+[features]
+napi = ["dep:napi", "dep:napi-derive"]
