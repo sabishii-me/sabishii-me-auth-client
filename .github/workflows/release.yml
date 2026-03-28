@@ -84,22 +84,16 @@ jobs:
         with:
           path: artifacts
 
-      - name: Move bindings to package root
-        run: |
-          for dir in artifacts/bindings-*; do
-            if [ -d "$dir" ]; then
-              cp "$dir"/*.node . 2>/dev/null || true
-            fi
-          done
-          ls -la *.node
+      - name: List downloaded artifacts
+        run: ls -R artifacts/
 
       - name: Install dependencies and generate TypeScript bindings
         run: |
           npm install
-          npx napi artifacts --dist .
+          npx napi artifacts
 
       - name: List generated files
-        run: ls -la index.* *.node
+        run: ls -la
 
       - name: Update package.json for publishing
         run: |
