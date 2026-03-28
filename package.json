@@ -1,6 +1,6 @@
 {
   "name": "@sabishii-me/auth-client",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Rust-based device authorization client for Sabishii.me services with Node.js bindings",
   "main": "index.js",
   "types": "index.d.ts",

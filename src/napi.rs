@@ -92,15 +92,13 @@ impl From<types::UserProfile> for UserProfile {
 pub struct SabishiiAuth {
     base_url: String,
     client_id: String,
-    app_name: String,
 }
 
 #[napi]
 impl SabishiiAuth {
     #[napi(constructor)]
-    pub fn new(base_url: String, client_id: String, app_name: Option<String>) -> Self {
-        let app_name = app_name.unwrap_or_else(|| client_id.clone());
-        Self { base_url, client_id, app_name }
+    pub fn new(base_url: String, client_id: String) -> Self {
+        Self { base_url, client_id }
     }
 
     /// Request a device code to start the device authorization flow.
@@ -133,7 +131,7 @@ impl SabishiiAuth {
             .map_err(|e| Error::from_reason(e.to_string()))?;
         
         // Save token to keychain
-        let store = TokenStore::new(&self.app_name);
+        let store = TokenStore::new(&self.base_url, &self.client_id);
         let state = crate::make_auth_state(token.clone());
         store.save(&state).map_err(|e| Error::from_reason(e.to_string()))?;
 
@@ -143,7 +141,7 @@ impl SabishiiAuth {
     /// Refresh the access token using a stored refresh token.
     #[napi]
     pub async fn refresh_token(&self) -> Result<TokenSet> {
-        let store = TokenStore::new(&self.app_name);
+        let store = TokenStore::new(&self.base_url, &self.client_id);
         let state = store.load()
             .map_err(|e| Error::from_reason(e.to_string()))?
             .ok_or_else(|| Error::from_reason("Not logged in"))?;
@@ -166,7 +164,7 @@ impl SabishiiAuth {
     /// Revoke the refresh token and clear stored credentials.
     #[napi]
     pub async fn logout(&self) -> Result<()> {
-        let store = TokenStore::new(&self.app_name);
+        let store = TokenStore::new(&self.base_url, &self.client_id);
 
         if let Some(state) = store.load().map_err(|e| Error::from_reason(e.to_string()))? {
             if let Some(refresh_token) = state.token.refresh_token {
@@ -183,7 +181,7 @@ impl SabishiiAuth {
     /// Load the currently stored auth state from keychain.
     #[napi]
     pub fn load_state(&self) -> Result<Option<AuthState>> {
-        let store = TokenStore::new(&self.app_name);
+        let store = TokenStore::new(&self.base_url, &self.client_id);
         let state = store.load().map_err(|e| Error::from_reason(e.to_string()))?;
         Ok(state.map(|s| s.into()))
     }
@@ -191,7 +189,7 @@ impl SabishiiAuth {
     /// Check if the stored token is expired.
     #[napi]
     pub fn is_token_expired(&self) -> Result<bool> {
-        let store = TokenStore::new(&self.app_name);
+        let store = TokenStore::new(&self.base_url, &self.client_id);
         let state = store.load()
             .map_err(|e| Error::from_reason(e.to_string()))?
             .ok_or_else(|| Error::from_reason("Not logged in"))?;
@@ -203,7 +201,7 @@ impl SabishiiAuth {
     /// Get the current user's profile.
     #[napi]
     pub async fn get_user_profile(&self) -> Result<UserProfile> {
-        let profile = crate::get_user_profile(&self.base_url, &self.app_name)
+        let profile = crate::get_user_profile(&self.base_url, &self.client_id)
             .await
             .map_err(|e| Error::from_reason(e.to_string()))?;
         Ok(profile.into())
@@ -212,7 +210,7 @@ impl SabishiiAuth {
     /// Get just the user ID.
     #[napi]
     pub async fn get_user_id(&self) -> Result<String> {
-        crate::get_user_id(&self.base_url, &self.app_name)
+        crate::get_user_id(&self.base_url, &self.client_id)
             .await
             .map_err(|e| Error::from_reason(e.to_string()))
     }
@@ -223,10 +221,8 @@ impl SabishiiAuth {
 pub async fn device_login(
     base_url: String,
     client_id: String,
-    app_name: Option<String>,
 ) -> Result<AuthState> {
-    let app_name = app_name.unwrap_or_else(|| client_id.clone());
-    let state = crate::login(&base_url, &client_id, &app_name)
+    let state = crate::login(&base_url, &client_id)
         .await
         .map_err(|e| Error::from_reason(e.to_string()))?;
     Ok(state.into())
@@ -237,10 +233,8 @@ pub async fn device_login(
 pub async fn device_logout(
     base_url: String,
     client_id: String,
-    app_name: Option<String>,
 ) -> Result<()> {
-    let app_name = app_name.unwrap_or_else(|| client_id.clone());
-    crate::logout(&base_url, &client_id, &app_name)
+    crate::logout(&base_url, &client_id)
         .await
         .map_err(|e| Error::from_reason(e.to_string()))
 }
