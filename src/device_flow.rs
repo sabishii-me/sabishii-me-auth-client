@@ -25,7 +25,7 @@ impl DeviceFlow {
     pub async fn request_device_code(&self) -> Result<DeviceCodeResponse> {
         let resp = self
             .client
-            .post(format!("{}/auth/device", self.base_url))
+            .post(format!("{}/auth/device/code", self.base_url))
             .json(&serde_json::json!({ "client_id": self.client_id }))
             .send()
             .await?;
