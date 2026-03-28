@@ -1,6 +1,6 @@
 [package]
 name = "sabishii-auth"
-version = "0.1.0"
+version = "0.1.5"
 edition = "2021"
 description = "Shared device auth client for sabishii CLIs"
 authors = ["c0dt <spj@c0dt.app>"]

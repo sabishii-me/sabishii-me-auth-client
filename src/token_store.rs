@@ -9,11 +9,13 @@ pub struct TokenStore {
 }
 
 impl TokenStore {
-    /// Create a store namespaced by app name (e.g. "sabishii-me-cli", "sabishii-chat-cli")
-    pub fn new(app_name: &str) -> Self {
+    /// Create a store isolated by service URL and client_id
+    /// - service: base_url (e.g. "https://account.sabishii.dev")
+    /// - username: client_id (e.g. "sabishii-chat")
+    pub fn new(base_url: &str, client_id: &str) -> Self {
         Self {
-            service: app_name.to_string(),
-            username: "auth-state".to_string(),
+            service: base_url.to_string(),
+            username: client_id.to_string(),
         }
     }
 

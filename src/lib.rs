@@ -16,10 +16,9 @@ pub use types::{DeviceCodeResponse, TokenSet, UserProfile};
 /// Run the full device login flow and store the token.
 /// `base_url` — e.g. "https://account.sabishii.me/auth"
 /// `client_id` — e.g. "sabishii-me-cli" or "sabishii-chat-cli"
-/// `app_name`  — keychain namespace, same as client_id
-pub async fn login(base_url: &str, client_id: &str, app_name: &str) -> Result<AuthState> {
+pub async fn login(base_url: &str, client_id: &str) -> Result<AuthState> {
     let flow = DeviceFlow::new(base_url, client_id);
-    let store = TokenStore::new(app_name);
+    let store = TokenStore::new(base_url, client_id);
 
     println!("Requesting device code...");
     let device = flow.request_device_code().await?;
@@ -42,8 +41,8 @@ pub async fn login(base_url: &str, client_id: &str, app_name: &str) -> Result<Au
 }
 
 /// Logout — revoke refresh token server-side and clear keychain.
-pub async fn logout(base_url: &str, client_id: &str, app_name: &str) -> Result<()> {
-    let store = TokenStore::new(app_name);
+pub async fn logout(base_url: &str, client_id: &str) -> Result<()> {
+    let store = TokenStore::new(base_url, client_id);
 
     if let Some(state) = store.load()? {
         if let Some(refresh_token) = state.token.refresh_token {
@@ -60,8 +59,8 @@ pub async fn logout(base_url: &str, client_id: &str, app_name: &str) -> Result<(
 }
 
 /// Refresh the stored access token using the stored refresh token.
-pub async fn refresh(base_url: &str, client_id: &str, app_name: &str) -> Result<()> {
-    let store = TokenStore::new(app_name);
+pub async fn refresh(base_url: &str, client_id: &str) -> Result<()> {
+    let store = TokenStore::new(base_url, client_id);
     let state = store.load()?.ok_or_else(|| anyhow!("Not logged in."))?;
 
     let refresh_token = state
@@ -79,8 +78,8 @@ pub async fn refresh(base_url: &str, client_id: &str, app_name: &str) -> Result<
 }
 
 /// Load the current auth state — returns None if not logged in.
-pub fn load_state(app_name: &str) -> Result<Option<AuthState>> {
-    TokenStore::new(app_name).load()
+pub fn load_state(base_url: &str, client_id: &str) -> Result<Option<AuthState>> {
+    TokenStore::new(base_url, client_id).load()
 }
 
 /// Check if stored token is expired.
@@ -91,8 +90,8 @@ pub fn is_token_expired(state: &AuthState) -> bool {
 
 /// Fetch the full user profile from the auth service.
 /// `base_url` — e.g. "https://account.sabishii.me/auth" (base, /me is at parent)
-pub async fn get_user_profile(base_url: &str, app_name: &str) -> Result<types::UserProfile> {
-    let state = TokenStore::new(app_name)
+pub async fn get_user_profile(base_url: &str, client_id: &str) -> Result<types::UserProfile> {
+    let state = TokenStore::new(base_url, client_id)
         .load()?
         .ok_or_else(|| anyhow!("Not logged in."))?;
 
@@ -118,8 +117,8 @@ pub async fn get_user_profile(base_url: &str, app_name: &str) -> Result<types::U
 }
 
 /// Get just the user ID from the auth service.
-pub async fn get_user_id(base_url: &str, app_name: &str) -> Result<String> {
-    Ok(get_user_profile(base_url, app_name).await?.id)
+pub async fn get_user_id(base_url: &str, client_id: &str) -> Result<String> {
+    Ok(get_user_profile(base_url, client_id).await?.id)
 }
 
 fn make_auth_state(token: types::TokenSet) -> AuthState {
