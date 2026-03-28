@@ -96,7 +96,7 @@ jobs:
       - name: Install dependencies and generate TypeScript bindings
         run: |
           npm install
-          npx napi artifacts --build-output-dir .
+          npx napi artifacts --dist .
 
       - name: List generated files
         run: ls -la index.* *.node
