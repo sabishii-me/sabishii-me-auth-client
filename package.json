@@ -4,6 +4,7 @@
   "description": "Rust-based device authorization client for Sabishii.me services with Node.js bindings",
   "main": "index.js",
   "types": "index.d.ts",
+  "private": true,
   "napi": {
     "name": "sabishii-auth",
     "triples": {
@@ -18,9 +19,7 @@
   },
   "scripts": {
     "build": "napi build --platform --release --features napi",
-    "build:debug": "napi build --platform --features napi",
-    "prepublishOnly": "napi prepublish -t npm",
-    "version": "napi version"
+    "build:debug": "napi build --platform --features napi"
   },
   "devDependencies": {
     "@napi-rs/cli": "^2.18.4"
