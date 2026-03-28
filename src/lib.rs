@@ -1,4 +1,8 @@
 pub mod device_flow;
+#[cfg(feature = "napi")]
+pub use crate::napi::*;
+#[cfg(feature = "napi")]
+mod napi;
 pub mod token_store;
 pub mod types;
 

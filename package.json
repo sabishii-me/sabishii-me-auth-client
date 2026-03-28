@@ -1,0 +1,40 @@
+{
+  "name": "@sabishii-me/auth-client",
+  "version": "0.1.0",
+  "description": "Rust-based device authorization client for Sabishii.me services with Node.js bindings",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "private": true,
+  "napi": {
+    "name": "sabishii-auth",
+    "triples": {
+      "defaults": true,
+      "additional": [
+        "x86_64-apple-darwin",
+        "aarch64-apple-darwin",
+        "x86_64-pc-windows-msvc",
+        "x86_64-unknown-linux-gnu"
+      ]
+    }
+  },
+  "scripts": {
+    "build": "napi build --platform --release --features napi",
+    "build:debug": "napi build --platform --features napi"
+  },
+  "devDependencies": {
+    "@napi-rs/cli": "^2.18.4"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sabishii-me/sabishii-me-auth-client.git"
+  },
+  "keywords": [
+    "sabishii",
+    "auth",
+    "device-flow",
+    "oauth2",
+    "napi"
+  ],
+  "author": "c0dt <spj@c0dt.app>",
+  "license": "MIT"
+}

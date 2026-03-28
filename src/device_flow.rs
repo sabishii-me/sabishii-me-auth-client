@@ -25,7 +25,7 @@ impl DeviceFlow {
     pub async fn request_device_code(&self) -> Result<DeviceCodeResponse> {
         let resp = self
             .client
-            .post(format!("{}/device/code", self.base_url))
+            .post(format!("{}/auth/device", self.base_url))
             .json(&serde_json::json!({ "client_id": self.client_id }))
             .send()
             .await?;
@@ -52,7 +52,7 @@ impl DeviceFlow {
 
             let resp = self
                 .client
-                .post(format!("{}/device/token", self.base_url))
+                .post(format!("{}/auth/device/token", self.base_url))
                 .json(&serde_json::json!({
                     "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
                     "device_code": &device.device_code,
@@ -94,7 +94,7 @@ impl DeviceFlow {
     pub async fn refresh_token(&self, refresh_token: &str) -> Result<TokenSet> {
         let resp = self
             .client
-            .post(format!("{}/device/refresh", self.base_url))
+            .post(format!("{}/auth/device/refresh", self.base_url))
             .json(&serde_json::json!({
                 "client_id": self.client_id,
                 "refresh_token": refresh_token,
@@ -116,7 +116,7 @@ impl DeviceFlow {
     pub async fn revoke_token(&self, refresh_token: &str) -> Result<()> {
         let resp = self
             .client
-            .post(format!("{}/device/revoke", self.base_url))
+            .post(format!("{}/auth/device/revoke", self.base_url))
             .json(&serde_json::json!({
                 "client_id": self.client_id,
                 "token": refresh_token,
