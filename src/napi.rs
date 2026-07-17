@@ -1,6 +1,10 @@
+use crate::{
+    device_flow::{normalize_base_url, DeviceFlow},
+    token_store::TokenStore,
+    types,
+};
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
-use crate::{device_flow::DeviceFlow, token_store::TokenStore, types};
 
 #[napi(object)]
 pub struct DeviceCodeResponse {
@@ -29,6 +33,12 @@ pub struct AuthState {
 }
 
 #[napi(object)]
+pub struct LogoutResult {
+    pub local_cleared: bool,
+    pub remote_revoked: bool,
+}
+
+#[napi(object)]
 pub struct UserProfile {
     pub id: String,
     pub email: String,
@@ -49,6 +59,26 @@ impl From<types::DeviceCodeResponse> for DeviceCodeResponse {
             expires_in: r.expires_in as i64,
             interval: r.interval.map(|i| i as i64),
         }
+    }
+}
+
+impl TryFrom<DeviceCodeResponse> for types::DeviceCodeResponse {
+    type Error = Error;
+
+    fn try_from(r: DeviceCodeResponse) -> Result<Self> {
+        Ok(Self {
+            device_code: r.device_code,
+            user_code: r.user_code,
+            verification_uri: r.verification_uri,
+            verification_uri_complete: r.verification_uri_complete,
+            expires_in: u64::try_from(r.expires_in)
+                .map_err(|_| Error::from_reason("Device code expiry is invalid"))?,
+            interval: r
+                .interval
+                .map(u64::try_from)
+                .transpose()
+                .map_err(|_| Error::from_reason("Device polling interval is invalid"))?,
+        })
     }
 }
 
@@ -74,6 +104,15 @@ impl From<types::AuthState> for AuthState {
     }
 }
 
+impl From<types::LogoutResult> for LogoutResult {
+    fn from(result: types::LogoutResult) -> Self {
+        Self {
+            local_cleared: result.local_cleared,
+            remote_revoked: result.remote_revoked,
+        }
+    }
+}
+
 impl From<types::UserProfile> for UserProfile {
     fn from(p: types::UserProfile) -> Self {
         Self {
@@ -91,150 +130,174 @@ impl From<types::UserProfile> for UserProfile {
 #[napi]
 pub struct SabishiiAuth {
     base_url: String,
+    storage_url: String,
     client_id: String,
 }
 
 #[napi]
 impl SabishiiAuth {
     #[napi(constructor)]
-    pub fn new(base_url: String, client_id: String) -> Self {
-        Self { base_url, client_id }
+    pub fn new(base_url: String, client_id: String) -> Result<Self> {
+        if client_id.trim().is_empty() {
+            return Err(Error::from_reason("Client ID must not be empty"));
+        }
+        let storage_url = base_url.trim().to_string();
+        let base_url =
+            normalize_base_url(&storage_url).map_err(|e| Error::from_reason(e.to_string()))?;
+        Ok(Self {
+            base_url,
+            storage_url,
+            client_id,
+        })
     }
 
     /// Request a device code to start the device authorization flow.
     #[napi]
     pub async fn request_device_code(&self) -> Result<DeviceCodeResponse> {
-        let flow = DeviceFlow::new(&self.base_url, &self.client_id);
-        let response = flow.request_device_code()
+        let flow = DeviceFlow::new(&self.base_url, &self.client_id)
+            .map_err(|e| Error::from_reason(e.to_string()))?;
+        let response = flow
+            .request_device_code()
             .await
             .map_err(|e| Error::from_reason(e.to_string()))?;
         Ok(response.into())
     }
 
-    /// Poll for token after user authorizes the device.
+    /// Poll using only a device code. Deprecated; use pollForDeviceToken so
+    /// server-provided expiry and interval values are preserved.
     #[napi]
     pub async fn poll_for_token(&self, device_code: String) -> Result<TokenSet> {
-        let flow = DeviceFlow::new(&self.base_url, &self.client_id);
-        
-        // Create minimal DeviceCodeResponse for polling
         let device = types::DeviceCodeResponse {
             device_code,
             user_code: String::new(),
             verification_uri: String::new(),
             verification_uri_complete: None,
-            expires_in: 600,
+            expires_in: 30 * 60,
             interval: Some(5),
         };
-
-        let token = flow.poll_for_token(&device)
-            .await
-            .map_err(|e| Error::from_reason(e.to_string()))?;
-        
-        // Save token to keychain
-        let store = TokenStore::new(&self.base_url, &self.client_id);
-        let state = crate::make_auth_state(token.clone());
-        store.save(&state).map_err(|e| Error::from_reason(e.to_string()))?;
-
-        Ok(token.into())
+        self.poll_and_store(device).await
     }
 
-    /// Refresh the access token using a stored refresh token.
+    /// Poll for a token using the complete server-provided device response.
+    #[napi]
+    pub async fn poll_for_device_token(&self, device: DeviceCodeResponse) -> Result<TokenSet> {
+        self.poll_and_store(types::DeviceCodeResponse::try_from(device)?)
+            .await
+    }
+
+    /// Refresh the access token using a stored single-use refresh token.
     #[napi]
     pub async fn refresh_token(&self) -> Result<TokenSet> {
-        let store = TokenStore::new(&self.base_url, &self.client_id);
-        let state = store.load()
+        let store = TokenStore::new(&self.storage_url, &self.client_id)
+            .map_err(|e| Error::from_reason(e.to_string()))?;
+        let state = store
+            .load()
             .map_err(|e| Error::from_reason(e.to_string()))?
             .ok_or_else(|| Error::from_reason("Not logged in"))?;
 
-        let refresh_token = state.token.refresh_token
+        let refresh_token = state
+            .token
+            .refresh_token
             .ok_or_else(|| Error::from_reason("No refresh token available"))?;
 
-        let flow = DeviceFlow::new(&self.base_url, &self.client_id);
-        let token = flow.refresh_token(&refresh_token)
+        let flow = DeviceFlow::new(&self.base_url, &self.client_id)
+            .map_err(|e| Error::from_reason(e.to_string()))?;
+        let token = flow
+            .refresh_token(&refresh_token)
             .await
             .map_err(|e| Error::from_reason(e.to_string()))?;
 
-        // Save new token to keychain
         let new_state = crate::make_auth_state(token.clone());
-        store.save(&new_state).map_err(|e| Error::from_reason(e.to_string()))?;
+        store
+            .save(&new_state)
+            .map_err(|e| Error::from_reason(e.to_string()))?;
 
         Ok(token.into())
     }
 
-    /// Revoke the refresh token and clear stored credentials.
+    /// Clear local credentials and report whether remote revocation succeeded.
     #[napi]
-    pub async fn logout(&self) -> Result<()> {
-        let store = TokenStore::new(&self.base_url, &self.client_id);
-
-        if let Some(state) = store.load().map_err(|e| Error::from_reason(e.to_string()))? {
-            if let Some(refresh_token) = state.token.refresh_token {
-                let flow = DeviceFlow::new(&self.base_url, &self.client_id);
-                // Ignore revocation errors — clear local state regardless
-                let _ = flow.revoke_token(&refresh_token).await;
-            }
-        }
-
-        store.clear().map_err(|e| Error::from_reason(e.to_string()))?;
-        Ok(())
+    pub async fn logout(&self) -> Result<LogoutResult> {
+        crate::logout(&self.storage_url, &self.client_id)
+            .await
+            .map(Into::into)
+            .map_err(|e| Error::from_reason(e.to_string()))
     }
 
     /// Load the currently stored auth state from keychain.
     #[napi]
     pub fn load_state(&self) -> Result<Option<AuthState>> {
-        let store = TokenStore::new(&self.base_url, &self.client_id);
-        let state = store.load().map_err(|e| Error::from_reason(e.to_string()))?;
-        Ok(state.map(|s| s.into()))
+        let store = TokenStore::new(&self.storage_url, &self.client_id)
+            .map_err(|e| Error::from_reason(e.to_string()))?;
+        let state = store
+            .load()
+            .map_err(|e| Error::from_reason(e.to_string()))?;
+        Ok(state.map(Into::into))
     }
 
     /// Check if the stored token is expired.
     #[napi]
     pub fn is_token_expired(&self) -> Result<bool> {
-        let store = TokenStore::new(&self.base_url, &self.client_id);
-        let state = store.load()
+        let store = TokenStore::new(&self.storage_url, &self.client_id)
+            .map_err(|e| Error::from_reason(e.to_string()))?;
+        let state = store
+            .load()
             .map_err(|e| Error::from_reason(e.to_string()))?
             .ok_or_else(|| Error::from_reason("Not logged in"))?;
-
-        let now = chrono::Utc::now().to_rfc3339();
-        Ok(state.expires_at < now)
+        Ok(crate::is_token_expired(&state))
     }
 
     /// Get the current user's profile.
     #[napi]
     pub async fn get_user_profile(&self) -> Result<UserProfile> {
-        let profile = crate::get_user_profile(&self.base_url, &self.client_id)
+        crate::get_user_profile(&self.storage_url, &self.client_id)
             .await
-            .map_err(|e| Error::from_reason(e.to_string()))?;
-        Ok(profile.into())
+            .map(Into::into)
+            .map_err(|e| Error::from_reason(e.to_string()))
     }
 
     /// Get just the user ID.
     #[napi]
     pub async fn get_user_id(&self) -> Result<String> {
-        crate::get_user_id(&self.base_url, &self.client_id)
+        crate::get_user_id(&self.storage_url, &self.client_id)
             .await
             .map_err(|e| Error::from_reason(e.to_string()))
     }
 }
 
-/// Standalone function for full device login flow.
-#[napi]
-pub async fn device_login(
-    base_url: String,
-    client_id: String,
-) -> Result<AuthState> {
-    let state = crate::login(&base_url, &client_id)
-        .await
-        .map_err(|e| Error::from_reason(e.to_string()))?;
-    Ok(state.into())
+impl SabishiiAuth {
+    async fn poll_and_store(&self, device: types::DeviceCodeResponse) -> Result<TokenSet> {
+        let flow = DeviceFlow::new(&self.base_url, &self.client_id)
+            .map_err(|e| Error::from_reason(e.to_string()))?;
+        let token = flow
+            .poll_for_token(&device)
+            .await
+            .map_err(|e| Error::from_reason(e.to_string()))?;
+
+        let store = TokenStore::new(&self.storage_url, &self.client_id)
+            .map_err(|e| Error::from_reason(e.to_string()))?;
+        let state = crate::make_auth_state(token.clone());
+        store
+            .save(&state)
+            .map_err(|e| Error::from_reason(e.to_string()))?;
+        Ok(token.into())
+    }
 }
 
-/// Standalone function to logout.
+/// Standalone function for the full interactive device login flow.
 #[napi]
-pub async fn device_logout(
-    base_url: String,
-    client_id: String,
-) -> Result<()> {
+pub async fn device_login(base_url: String, client_id: String) -> Result<AuthState> {
+    crate::login(&base_url, &client_id)
+        .await
+        .map(Into::into)
+        .map_err(|e| Error::from_reason(e.to_string()))
+}
+
+/// Standalone function to clear local credentials and attempt remote revocation.
+#[napi]
+pub async fn device_logout(base_url: String, client_id: String) -> Result<LogoutResult> {
     crate::logout(&base_url, &client_id)
         .await
+        .map(Into::into)
         .map_err(|e| Error::from_reason(e.to_string()))
 }

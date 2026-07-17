@@ -4,7 +4,6 @@ on:
   push:
     tags:
       - 'v*'
-  workflow_dispatch:
 
 permissions:
   contents: read
@@ -18,7 +17,7 @@ jobs:
         settings:
           - host: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-          - host: macos-latest
+          - host: macos-13
             target: x86_64-apple-darwin
           - host: macos-latest
             target: aarch64-apple-darwin
@@ -42,17 +41,23 @@ jobs:
           node-version: '20'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
-      - name: Build (native target)
-        if: matrix.settings.target != 'aarch64-apple-darwin'
-        run: npm run build
+      - name: Test Rust core
+        run: cargo test
 
-      - name: Build (cross-compile ARM)
-        if: matrix.settings.target == 'aarch64-apple-darwin'
+      - name: Build explicit native target
+        run: npm run build -- --target ${{ matrix.settings.target }}
+
+      - name: Smoke test packed native binding
+        shell: bash
         run: |
-          rustup target add aarch64-apple-darwin
-          npm run build -- --target aarch64-apple-darwin
+          tarball=$(npm pack --silent)
+          mkdir package-smoke
+          cd package-smoke
+          npm init -y >/dev/null
+          npm install "../${tarball}" >/dev/null
+          node -e "const sdk = require('@sabishii-me/auth-client'); const client = new sdk.SabishiiAuth('https://account.sabishii.me', 'package-smoke'); if (typeof client.requestDeviceCode !== 'function' || typeof client.pollForDeviceToken !== 'function') process.exit(1)"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -76,6 +81,11 @@ jobs:
           registry-url: 'https://npm.pkg.github.com'
           scope: '@sabishii-me'
 
+      - name: Verify release tag matches package version
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: test "${GITHUB_REF_NAME}" = "v$(node -p \"require('./package.json').version\")"
+
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
@@ -89,6 +99,13 @@ jobs:
             fi
           done
           ls -la *.node *.js *.d.ts
+
+      - name: Verify expected bindings
+        run: |
+          test -f sabishii-auth.linux-x64-gnu.node
+          test -f sabishii-auth.darwin-x64.node
+          test -f sabishii-auth.darwin-arm64.node
+          test -f sabishii-auth.win32-x64-msvc.node
 
       - name: Update package.json for publishing
         run: |
