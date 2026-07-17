@@ -1,9 +1,16 @@
 {
   "name": "@sabishii-me/auth-client",
-  "version": "0.1.5",
+  "version": "0.2.0",
   "description": "Rust-based device authorization client for Sabishii.me services with Node.js bindings",
   "main": "index.js",
   "types": "index.d.ts",
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "README.md",
+    "LICENSE",
+    "sabishii-auth.*.node"
+  ],
   "private": true,
   "napi": {
     "name": "sabishii-auth",
@@ -19,7 +26,9 @@
   },
   "scripts": {
     "build": "napi build --platform --release --features napi",
-    "build:debug": "napi build --platform --features napi"
+    "build:debug": "napi build --platform --features napi",
+    "test": "cargo test",
+    "check": "cargo fmt --check && cargo test"
   },
   "devDependencies": {
     "@napi-rs/cli": "^2.18.4"

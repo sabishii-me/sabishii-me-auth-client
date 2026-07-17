@@ -31,7 +31,12 @@ pub struct AuthState {
 #[derive(Debug, Deserialize)]
 pub struct TokenErrorResponse {
     pub error: String,
-    pub error_description: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LogoutResult {
+    pub local_cleared: bool,
+    pub remote_revoked: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -1,6 +1,6 @@
 [package]
 name = "sabishii-auth"
-version = "0.1.5"
+version = "0.2.0"
 edition = "2021"
 description = "Shared device auth client for sabishii CLIs"
 authors = ["c0dt <spj@c0dt.app>"]
@@ -13,6 +13,9 @@ keyring = "2"
 anyhow = "1"
 chrono = { version = "0.4", features = ["serde"] }
 tokio = { version = "1", features = ["time"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 
 [lib]
 crate-type = ["cdylib", "rlib"]

@@ -23,6 +23,10 @@ export interface AuthState {
   token: TokenSet
   expiresAt: string
 }
+export interface LogoutResult {
+  localCleared: boolean
+  remoteRevoked: boolean
+}
 export interface UserProfile {
   id: string
   email: string
@@ -32,20 +36,25 @@ export interface UserProfile {
   createdAt: string
   updatedAt: string
 }
-/** Standalone function for full device login flow. */
-export declare function deviceLogin(baseUrl: string, clientId: string, appName?: string | undefined | null): Promise<AuthState>
-/** Standalone function to logout. */
-export declare function deviceLogout(baseUrl: string, clientId: string, appName?: string | undefined | null): Promise<void>
+/** Standalone function for the full interactive device login flow. */
+export declare function deviceLogin(baseUrl: string, clientId: string): Promise<AuthState>
+/** Standalone function to clear local credentials and attempt remote revocation. */
+export declare function deviceLogout(baseUrl: string, clientId: string): Promise<LogoutResult>
 export declare class SabishiiAuth {
-  constructor(baseUrl: string, clientId: string, appName?: string | undefined | null)
+  constructor(baseUrl: string, clientId: string)
   /** Request a device code to start the device authorization flow. */
   requestDeviceCode(): Promise<DeviceCodeResponse>
-  /** Poll for token after user authorizes the device. */
+  /**
+   * Poll using only a device code. Deprecated; use pollForDeviceToken so
+   * server-provided expiry and interval values are preserved.
+   */
   pollForToken(deviceCode: string): Promise<TokenSet>
-  /** Refresh the access token using a stored refresh token. */
+  /** Poll for a token using the complete server-provided device response. */
+  pollForDeviceToken(device: DeviceCodeResponse): Promise<TokenSet>
+  /** Refresh the access token using a stored single-use refresh token. */
   refreshToken(): Promise<TokenSet>
-  /** Revoke the refresh token and clear stored credentials. */
-  logout(): Promise<void>
+  /** Clear local credentials and report whether remote revocation succeeded. */
+  logout(): Promise<LogoutResult>
   /** Load the currently stored auth state from keychain. */
   loadState(): AuthState | null
   /** Check if the stored token is expired. */
