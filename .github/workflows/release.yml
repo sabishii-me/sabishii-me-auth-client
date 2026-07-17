@@ -82,9 +82,10 @@ jobs:
           scope: '@sabishii-me'
 
       - name: Verify release tag matches package version
-        if: startsWith(github.ref, 'refs/tags/')
         shell: bash
-        run: test "${GITHUB_REF_NAME}" = "v$(node -p \"require('./package.json').version\")"
+        run: |
+          package_version=$(node -p "require('./package.json').version")
+          test "${GITHUB_REF_NAME}" = "v${package_version}"
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
